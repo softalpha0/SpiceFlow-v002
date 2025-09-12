@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>SpiceFlow</title>
+<style>
+body { font-family: Arial; background: #0f0f1a; color: #fff; text-align:center; margin:0; padding:0; }
+header { background:#1a1a2e; padding:1rem; font-size:1.5rem; font-weight:bold;}
+.container { max-width:600px; margin:2rem auto; padding:1rem;}
+.card { background:#1e1e30; margin:1rem 0; padding:1rem; border-radius:10px; box-shadow:0 2px 6px rgba(0,0,0,0.4);}
+button, a.btn-primary { padding:8px 15px; border:none; border-radius:5px; cursor:pointer; font-weight:bold; text-decoration:none; display:inline-block;}
+.btn-primary { background:#007bff;color:white;}
+.btn-claim { background:#28a745;color:white;}
+#leaderboard table { width:100%; border-collapse:collapse;}
+#leaderboard th,#leaderboard td{ padding:8px;border-bottom:1px solid #333;}
+</style>
+</head>
+<body>
+<header>🔥 SpiceFlow Quests 🔥</header>
+<div class="container">
+
+  <div id="login">
+    <h3>Login with X</h3>
+    <a href="/auth/login" class="btn-primary">Sign in with X</a>
+  </div>
+
+  <div id="profile" style="display:none;">
+    <h3 id="profileInfo"></h3>
+    <button id="logout" class="btn-primary">Logout</button>
+  </div>
+
+  <div id="tasks"></div>
+  <div id="leaderboard"></div>
+
+</div>
+
+<script>
+const API_BASE = "http://localhost:3000";
+
+// Logout
+document.getElementById("logout").onclick = ()=>{
+  localStorage.removeItem("x_user_id");
+  localStorage.removeItem("x_username");
+  location.reload();
+};
+
+// Parse URL params
+function getQueryParams() {
+  const params={};
+  window.location.search.substring(1).split("&").forEach(p=>{
+    const [k,v]=p.split("=");
+    if(k) params[k]=decodeURIComponent(v);
+  });
+  return params;
+}
+
+// Load profile
+async function loadProfile() {
+  const params=getQueryParams();
+  let x_user_id = params.x_user_id || localStorage.getItem("x_user_id");
+  let x_username = params.username || localStorage.getItem("x_username");
+
+  if(params.x_user_id && params.username){
+    localStorage.setItem("x_user_id", x_user_id);
+    localStorage.setItem("x_username", x_username);
+    history.replaceState({}, "", window.location.pathname); // clean URL
+  }
+
+  if(!x_user_id) return;
+
+  document.getElementById("login").style.display="none";
+  document.getElementById("profile").style.display="block";
+  document.getElementById("profileInfo").innerText=`${x_username} • Loading points...`;
+
+  try {
+    const d = await fetch(`${API_BASE}/api/spiceflow/me?x_user_id=${x_user_id}`).then(r=>r.json());
+    console.log("User progress:", d);
+    if(d.user) document.getElementById("profileInfo").innerText=`${x_username} • Points: ${d.user.points}`;
+  } catch(err) {
+    console.error("Error fetching user info:", err);
+  }
+
+  loadTasks(x_user_id);
+  loadLeaderboard();
+}
+
+// Load tasks
+async function loadTasks(x_user_id){
+  try{
+    const list = await fetch(`${API_BASE}/api/spiceflow/tasks?x_user_id=${x_user_id}`).then(r=>r.json());
+    console.log("Tasks:", list);
+
+    const div = document.getElementById("tasks");
+    div.innerHTML="<h3>Tasks</h3>";
+
+    list.forEach(t=>{
+      const el=document.createElement("div");
+      el.className="card";
+      el.innerHTML=`<p><b>${t.name}</b></p>${t.href ? `<a href="${t.href}" target="_blank">Do Task</a><br><br>` : ""}`;
+
+      // Create claim button only if task not claimed
+      if(!t.claimed){
+        const btn = document.createElement("button");
+        btn.className="btn-claim";
+        btn.innerText = `Claim ${t.points} pts`;
+
+        btn.onclick = async ()=>{
+          try{
+            const res = await fetch(`${API_BASE}/api/spiceflow/claim`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ x_user_id, taskId: t.id })
+            });
+            const data = await res.json();
+            console.log("Claim response:", data);
+
+            if(data.error){
+              alert(data.error);
+              return;
+            }
+
+            // Update points display
+            document.getElementById("profileInfo").innerText = `${localStorage.getItem("x_username")} • Points: ${data.points}`;
+
+            // Change button to "Claimed" and disable it
+            btn.innerText = "Claimed ✅";
+            btn.disabled = true;
+            btn.style.background = "gray";
+          } catch(err){
+            console.error(err);
+            alert("Error claiming task");
+          }
+        };
+
+        el.appendChild(btn);
+      } else {
+        el.innerHTML+=`<p style="color:lime;">✅ Claimed</p>`;
+      }
+
+      div.appendChild(el);
+    });
+
+  } catch(err){
+    console.error("Error loading tasks:", err);
+  }
+}
+
+// Leaderboard
+async function loadLeaderboard(){
+  try{
+    const data=await fetch(`${API_BASE}/api/spiceflow/leaderboard`).then(r=>r.json());
+    console.log("Leaderboard:", data);
+
+    const div=document.getElementById("leaderboard");
+    div.innerHTML="<h3>Leaderboard</h3>";
+    let html="<table><tr><th>User</th><th>Points</th></tr>";
+    data.forEach(u=>{ html+=`<tr><td>${u.username}</td><td>${u.points}</td></tr>` });
+    html+="</table>";
+    div.innerHTML+=html;
+  }catch(err){ console.error("Error loading leaderboard:", err); }
+}
+
+loadProfile();
+</script>
+</body>
+</html>
