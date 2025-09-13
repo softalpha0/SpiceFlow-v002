@@ -69,7 +69,7 @@ app.get("/auth/login", (req, res) => {
   const params = new URLSearchParams({
     response_type: "code",
     client_id: process.env.X_CLIENT_ID,
-    redirect_uri: "https://spicenet-x.onrender.com/auth/x/callback",
+    redirect_uri: "https://spiceflow.onrender.com/auth/x/callback",
     scope: "tweet.read users.read follows.read like.read offline.access",
     state: "spiceflow123",
     code_challenge: "challenge", // TODO: replace with real PKCE challenge
@@ -107,7 +107,7 @@ const tokenRes = await fetch("https://api.twitter.com/2/oauth2/token", {
   body: new URLSearchParams({
     code,
     grant_type: "authorization_code",
-    redirect_uri: "https://spicenet-x.onrender.com/auth/x/callback",
+    redirect_uri: "https://spiceflow.onrender.com/auth/x/callback",
     code_verifier: "challenge"
   }),
 });
@@ -386,6 +386,7 @@ app.get(/^(?!\/api|\/auth).*$/, (req, res) => {
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
+
 
 
 
