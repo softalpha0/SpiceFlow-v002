@@ -12,6 +12,8 @@ const PORT = process.env.PORT || 3000;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+app.use(express.static(path.join(process.cwd(), "Public"))); 
+
 // === DB Setup ===
 console.log("🔌 Connecting to NeonDB...");
 const pool = new pg.Pool({
@@ -19,10 +21,37 @@ const pool = new pg.Pool({
   ssl: { rejectUnauthorized: false },
 });
 
-pool.connect()
-  .then(() => console.log("✅ Connected to NeonDB"))
-  .catch(err => console.error("❌ NeonDB connection error:", err.message));
+// Handle errors on idle clients
+pool.on("error", (err, client) => {
+  console.error("❌ Unexpected error on idle client:", err);
+});
 
+// Connect safely without crashing
+(async () => {
+  try {
+    const client = await pool.connect();
+    console.log("✅ Connected to NeonDB");
+
+    // Catch errors on this specific client
+    client.on("error", err => {
+      console.error("❌ Client error during connection:", err);
+    });
+
+    client.release();
+  } catch (err) {
+    console.error("❌ NeonDB connection failed at startup:", err);
+    // Do NOT throw → app keeps running
+  }
+})();
+
+// Global safety nets
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("❌ Unhandled Rejection:", reason);
+});
+
+process.on("uncaughtException", (err) => {
+  console.error("❌ Uncaught Exception:", err);
+});
 // Middleware
 app.use(express.json());
 app.use((req, res, next) => {
@@ -40,7 +69,7 @@ app.get("/auth/login", (req, res) => {
   const params = new URLSearchParams({
     response_type: "code",
     client_id: process.env.X_CLIENT_ID,
-    redirect_uri: "http://localhost:3000/auth/x/callback",
+    redirect_uri: "https://spicenet-x.onrender.com/auth/x/callback",
     scope: "tweet.read users.read follows.read like.read offline.access",
     state: "spiceflow123",
     code_challenge: "challenge", // TODO: replace with real PKCE challenge
@@ -78,7 +107,7 @@ const tokenRes = await fetch("https://api.twitter.com/2/oauth2/token", {
   body: new URLSearchParams({
     code,
     grant_type: "authorization_code",
-    redirect_uri: "http://localhost:3000/auth/x/callback",
+    redirect_uri: "https://spicenet-x.onrender.com/auth/x/callback",
     code_verifier: "challenge"
   }),
 });
@@ -151,7 +180,7 @@ app.get("/api/spiceflow/leaderboard", async (req, res) => {
 
 // Serve admin page
 app.get("/admin.html", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "admin.html"));
+  res.sendFile(path.join(__dirname, "Public", "admin.html"));
 });
 
 // Resolve username → numeric X user ID
@@ -351,10 +380,18 @@ app.post("/api/spiceflow/claim", async (req, res) => {
 // === FRONTEND FALLBACK (must be last) ===
 app.get(/^(?!\/api|\/auth).*$/, (req, res) => {
   console.log("📄 Serving frontend for", req.url);
-  res.sendFile(path.join(__dirname, "public", "index0.html"));
+  res.sendFile(path.join(__dirname, "Public", "index0.html"));
 });
 
-// Start server
 app.listen(PORT, () => {
-  console.log(`🚀 Debug server running on http://localhost:${PORT}`);
+  console.log(`🚀 Server running on port ${PORT}`);
 });
+
+
+
+
+
+
+
+
+
