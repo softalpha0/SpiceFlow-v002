@@ -310,7 +310,12 @@ app.post("/api/spiceflow/claim", async (req, res) => {
 
     let verified = false;
 
-    if (task.type === "social.follow") {
+ if (task.type === "link.task") {
+  verified = true; 
+
+    }
+
+    else if (task.type === "social.follow") {
       console.log("✅ Checking if user follows target...");
       const followRes = await fetch(`https://api.twitter.com/2/users/${x_user_id}/following`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -386,6 +391,7 @@ app.get(/^(?!\/api|\/auth).*$/, (req, res) => {
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
+
 
 
 
